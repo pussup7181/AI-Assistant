@@ -1,4 +1,5 @@
 Flask
 requests
 pydub
-gunicorn
+openai
+

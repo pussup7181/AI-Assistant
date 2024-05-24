@@ -6,7 +6,6 @@ const recordButton = document.getElementById('recordButton');
 
         recordButton.addEventListener('click', async () => {
             const sourceLang = document.getElementById('sourceLang').value;
-            const targetLang = document.getElementById('targetLang').value;
 
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 alert('Your browser does not support audio recording.');
