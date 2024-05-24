@@ -1,2 +1,2 @@
-web: python -m pip install requirements.txt
+web: python -m pip install -r requirements.txt
 web: python app.py
