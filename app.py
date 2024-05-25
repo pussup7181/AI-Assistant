@@ -4,7 +4,6 @@ import base64
 from pydub import AudioSegment
 from io import BytesIO
 import os
-import logging
 from openai import OpenAI
 
 app = Flask(__name__)
@@ -57,19 +56,19 @@ def process_audio():
         )
 
         if response.status_code != 200:
-            app.logger.error(f"Pipeline request failed: {response.status_code} - {response.text}")
+            print(f"Pipeline request failed: {response.status_code} - {response.text}")
             return jsonify({'error': 'Failed to get pipeline details'}), 500
 
         pipeline_response = response.json()
-        app.logger.debug(f"Pipeline Response: {response.json()}")
+        #print(f"Pipeline Response: {response.json()}")
         callback_url = pipeline_response['pipelineInferenceAPIEndPoint']['callbackUrl']
         asr_service_id = pipeline_response['pipelineResponseConfig'][0]['config'][0]['serviceId']
 
         compute_authorization_key = pipeline_response['pipelineInferenceAPIEndPoint']['inferenceApiKey']['name']
         compute_call_authorization_value = pipeline_response['pipelineInferenceAPIEndPoint']['inferenceApiKey']['value']
-        app.logger.debug(asr_service_id)
-        app.logger.debug(f"Callback URL: {callback_url}")
-        app.logger.debug(f"Authorization Key: {compute_authorization_key}, Authorization Value: {compute_call_authorization_value}")
+        print(asr_service_id)
+        print(f"Callback URL: {callback_url}")
+        print(f"Authorization Key: {compute_authorization_key}, Authorization Value: {compute_call_authorization_value}")
 
         # Step 2: Send audio data for processing
         payload = {
@@ -101,22 +100,22 @@ def process_audio():
             json=payload,
             headers={'Content-Type': 'application/json', 'ulcaApiKey': api_key, 'userID': user_id, compute_authorization_key: compute_call_authorization_value}
         )
-        app.logger.debug(f"Response: {response.json()}")
+        print(f"Response: {response.json()}")
 
         if response.status_code != 200:
-            app.logger.error(f"Audio processing failed: {response.status_code} - {response.text}")
+            print(f"Audio processing failed: {response.status_code} - {response.text}")
             return jsonify({'error': 'Failed to process audio'}), 500
         
         transcribed_audio = response.json()['pipelineResponse'][0]['output'][0]['source']
         chat_reply = chat(transcribed_audio)
         processed_audio = tts(chat_reply, source_lang)
-        app.logger.debug(f"User: {transcribed_audio}")
-        app.logger.debug(f"Assistant: {chat_reply}")
-        app.logger.debug(f"Audio: {processed_audio}")
+        print(f"User: {transcribed_audio}")
+        print(f"Assistant: {chat_reply}")
+        #print(f"Audio: {processed_audio}")
         return jsonify({'transcription': transcribed_audio, 'assistant':chat_reply, 'audio':processed_audio})
 
     except Exception as e:
-        app.logger.error(f"Exception occurred: {str(e)}")
+        print(f"Exception occurred: {str(e)}")
         return jsonify({'error': 'An error occurred while processing audio'}), 500
 
 def chat(prompt):
@@ -128,9 +127,9 @@ def chat(prompt):
                 {"role": "user", "content":prompt}
             ]
         )
-        app.logger.debug(completion)
+        #print(completion)
     except Exception as e:
-        app.logger.error(f"Exception occurred in chat: {str(e)}")
+        print(f"Exception occurred in chat: {str(e)}")
         return 'An error occurred while processing audio'
     return completion.choices[0].message.content
 
@@ -151,19 +150,19 @@ def tts(prompt, source_lang):
         )
 
         if response.status_code != 200:
-            app.logger.error(f"TTS Pipeline request failed: {response.status_code} - {response.text}")
+            print(f"TTS Pipeline request failed: {response.status_code} - {response.text}")
             return jsonify({'error': 'Failed to get tts pipeline details'}), 500
 
         pipeline_response = response.json()
-        app.logger.debug(f"TTS Pipeline Response: {response.json()}")
+        #print(f"TTS Pipeline Response: {response.json()}")
         callback_url = pipeline_response['pipelineInferenceAPIEndPoint']['callbackUrl']
         tts_service_id = pipeline_response['pipelineResponseConfig'][0]['config'][0]['serviceId']
 
         compute_authorization_key = pipeline_response['pipelineInferenceAPIEndPoint']['inferenceApiKey']['name']
         compute_call_authorization_value = pipeline_response['pipelineInferenceAPIEndPoint']['inferenceApiKey']['value']
-        app.logger.debug(tts_service_id)
-        app.logger.debug(f"Callback URL: {callback_url}")
-        app.logger.debug(f"Authorization Key: {compute_authorization_key}, Authorization Value: {compute_call_authorization_value}")
+        print(tts_service_id)
+        print(f"Callback URL: {callback_url}")
+        print(f"Authorization Key: {compute_authorization_key}, Authorization Value: {compute_call_authorization_value}")
 
         # Step 2: Send chat data for processing
         payload = {
@@ -195,10 +194,10 @@ def tts(prompt, source_lang):
             json=payload,
             headers={'Content-Type': 'application/json', 'ulcaApiKey': api_key, 'userID': user_id, compute_authorization_key: compute_call_authorization_value}
         )
-        app.logger.debug(f"tts Response: {response.json()}")
+        #print(f"tts Response: {response.json()}")
 
         if response.status_code != 200:
-            app.logger.error(f"Audio processing failed: {response.status_code} - {response.text}")
+            print(f"Audio processing failed: {response.status_code} - {response.text}")
             return jsonify({'error': 'Failed to process audio'}), 500
         
         processed_audio_base64 = response.json()['pipelineResponse'][0]['audio'][0]['audioContent']
@@ -206,12 +205,9 @@ def tts(prompt, source_lang):
         return processed_audio_base64
 
     except Exception as e:
-        app.logger.error(f"Exception occurred: {str(e)}")
+        print(f"Exception occurred: {str(e)}")
         return jsonify({'error': 'An error occurred while processing audio'}), 500
 
 if __name__ == '__main__':
-    # Set up logging
-    logging.basicConfig(filename='app.log', level=logging.DEBUG,
-                        format='%(asctime)s %(levelname)s %(name)s %(threadName)s : %(message)s')
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True)
 
