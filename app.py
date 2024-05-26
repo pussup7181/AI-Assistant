@@ -7,15 +7,18 @@ import os
 from openai import OpenAI
 
 app = Flask(__name__)
-OPENAI_API_KEY = 'sk-proj-hCy1WDa6jE1MHyaUFoL6T3BlbkFJdKRSeOdZfjUDlk01AuMb'
+
+# Load environment variables
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+USER_ID = os.getenv('USER_ID')
+API_KEY = os.getenv('API_KEY')
+PIPELINE_ID = os.getenv('PIPELINE_ID')
+
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Configuration variables
 ulca_base_url = 'https://meity-auth.ulcacontrib.org'
 model_pipeline_endpoint = "https://meity-auth.ulcacontrib.org/ulca/apis/v0/model/getModelsPipeline"
-user_id = 'cfae7f756a424bfeaaaa00ba44a98ae7'
-api_key = '398316fb83-444f-4fd5-801b-4e69221c1d12'
-pipeline_id = '64392f96daac500b55c543cd'
 
 # Function to convert base64 string back to audio file
 def base64_to_audio(base64_string):
@@ -49,10 +52,10 @@ def process_audio():
             json={
                 "pipelineTasks": [
                     {"taskType": "asr", "config": {"language": {"sourceLanguage": source_lang}}},
-                    ],
-                "pipelineRequestConfig": {"pipelineId": pipeline_id}
+                ],
+                "pipelineRequestConfig": {"pipelineId": PIPELINE_ID}
             },
-            headers={'Content-Type': 'application/json', 'ulcaApiKey': api_key, 'userID': user_id}
+            headers={'Content-Type': 'application/json', 'ulcaApiKey': API_KEY, 'userID': USER_ID}
         )
 
         if response.status_code != 200:
@@ -60,7 +63,6 @@ def process_audio():
             return jsonify({'error': 'Failed to get pipeline details'}), 500
 
         pipeline_response = response.json()
-        #print(f"Pipeline Response: {response.json()}")
         callback_url = pipeline_response['pipelineInferenceAPIEndPoint']['callbackUrl']
         asr_service_id = pipeline_response['pipelineResponseConfig'][0]['config'][0]['serviceId']
 
@@ -72,47 +74,45 @@ def process_audio():
 
         # Step 2: Send audio data for processing
         payload = {
-        "pipelineTasks": [
-            {
-                "taskType": "asr",
-                "config": {
-                    "language": {
-                        "sourceLanguage": source_lang
-                    },
-                    "serviceId": asr_service_id,
-                    "audioFormat": "wav",
-                    "samplingRate": 16000
-                }
-            }
-        ],
-        "inputData": {
-            "audio": [
+            "pipelineTasks": [
                 {
-                    "audioContent": audio_base64
+                    "taskType": "asr",
+                    "config": {
+                        "language": {
+                            "sourceLanguage": source_lang
+                        },
+                        "serviceId": asr_service_id,
+                        "audioFormat": "wav",
+                        "samplingRate": 16000
+                    }
                 }
-            ]
+            ],
+            "inputData": {
+                "audio": [
+                    {
+                        "audioContent": audio_base64
+                    }
+                ]
+            }
         }
-    }
-
 
         response = requests.post(
             callback_url,
             json=payload,
-            headers={'Content-Type': 'application/json', 'ulcaApiKey': api_key, 'userID': user_id, compute_authorization_key: compute_call_authorization_value}
+            headers={'Content-Type': 'application/json', 'ulcaApiKey': API_KEY, 'userID': USER_ID, compute_authorization_key: compute_call_authorization_value}
         )
         print(f"Response: {response.json()}")
 
         if response.status_code != 200:
             print(f"Audio processing failed: {response.status_code} - {response.text}")
             return jsonify({'error': 'Failed to process audio'}), 500
-        
+
         transcribed_audio = response.json()['pipelineResponse'][0]['output'][0]['source']
         chat_reply = chat(transcribed_audio)
         processed_audio = tts(chat_reply, source_lang)
         print(f"User: {transcribed_audio}")
         print(f"Assistant: {chat_reply}")
-        #print(f"Audio: {processed_audio}")
-        return jsonify({'transcription': transcribed_audio, 'assistant':chat_reply, 'audio':processed_audio})
+        return jsonify({'transcription': transcribed_audio, 'assistant': chat_reply, 'audio': processed_audio})
 
     except Exception as e:
         print(f"Exception occurred: {str(e)}")
@@ -121,32 +121,28 @@ def process_audio():
 def chat(prompt):
     try:
         completion = client.chat.completions.create(
-            model = 'gpt-4o',
-            messages = [
+            model='gpt-4o',
+            messages=[
                 {"role": "system", "content": "you are a helpful chat assistant. you always give replies in the same language as user asks you"},
-                {"role": "user", "content":prompt}
+                {"role": "user", "content": prompt}
             ]
         )
-        #print(completion)
     except Exception as e:
         print(f"Exception occurred in chat: {str(e)}")
         return 'An error occurred while processing audio'
     return completion.choices[0].message.content
 
-
 def tts(prompt, source_lang):
     try:
-
-        # Step 1: Send request to get pipeline details
         response = requests.post(
             model_pipeline_endpoint,
             json={
                 "pipelineTasks": [
                     {"taskType": "tts", "config": {"language": {"sourceLanguage": source_lang}}},
-                    ],
-                "pipelineRequestConfig": {"pipelineId": pipeline_id}
+                ],
+                "pipelineRequestConfig": {"pipelineId": PIPELINE_ID}
             },
-            headers={'Content-Type': 'application/json', 'ulcaApiKey': api_key, 'userID': user_id}
+            headers={'Content-Type': 'application/json', 'ulcaApiKey': API_KEY, 'userID': USER_ID}
         )
 
         if response.status_code != 200:
@@ -154,7 +150,6 @@ def tts(prompt, source_lang):
             return jsonify({'error': 'Failed to get tts pipeline details'}), 500
 
         pipeline_response = response.json()
-        #print(f"TTS Pipeline Response: {response.json()}")
         callback_url = pipeline_response['pipelineInferenceAPIEndPoint']['callbackUrl']
         tts_service_id = pipeline_response['pipelineResponseConfig'][0]['config'][0]['serviceId']
 
@@ -164,44 +159,40 @@ def tts(prompt, source_lang):
         print(f"Callback URL: {callback_url}")
         print(f"Authorization Key: {compute_authorization_key}, Authorization Value: {compute_call_authorization_value}")
 
-        # Step 2: Send chat data for processing
         payload = {
-        "pipelineTasks": [
-            {
-                "taskType": "tts",
-                "config": {
-                    "language": {
-                        "sourceLanguage": source_lang
-                    },
-                    "serviceId": tts_service_id,
-                    "gender": "female",
-                    "samplingRate": 16000
-                }
-            }
-        ],
-        "inputData": {
-            "input": [
+            "pipelineTasks": [
                 {
-                    "source": prompt
+                    "taskType": "tts",
+                    "config": {
+                        "language": {
+                            "sourceLanguage": source_lang
+                        },
+                        "serviceId": tts_service_id,
+                        "gender": "female",
+                        "samplingRate": 16000
+                    }
                 }
-            ]
+            ],
+            "inputData": {
+                "input": [
+                    {
+                        "source": prompt
+                    }
+                ]
+            }
         }
-    }
-
 
         response = requests.post(
             callback_url,
             json=payload,
-            headers={'Content-Type': 'application/json', 'ulcaApiKey': api_key, 'userID': user_id, compute_authorization_key: compute_call_authorization_value}
+            headers={'Content-Type': 'application/json', 'ulcaApiKey': API_KEY, 'userID': USER_ID, compute_authorization_key: compute_call_authorization_value}
         )
-        #print(f"tts Response: {response.json()}")
 
         if response.status_code != 200:
             print(f"Audio processing failed: {response.status_code} - {response.text}")
             return jsonify({'error': 'Failed to process audio'}), 500
-        
-        processed_audio_base64 = response.json()['pipelineResponse'][0]['audio'][0]['audioContent']
 
+        processed_audio_base64 = response.json()['pipelineResponse'][0]['audio'][0]['audioContent']
         return processed_audio_base64
 
     except Exception as e:
@@ -210,4 +201,3 @@ def tts(prompt, source_lang):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True)
-
