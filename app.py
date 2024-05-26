@@ -30,13 +30,13 @@ def base64_to_audio(base64_string):
 def index():
     return render_template('index.html')
 
-@app.route('/process_audio', methods=['POST'])
-def process_audio():
+@app.route('/asr', methods=['POST'])
+def asr():
     try:
         data = request.json
         audio_base64 = data['audio']
         source_lang = data['sourceLang']
-
+        """
         # Convert base64 audio to AudioSegment
         audio = base64_to_audio(audio_base64)
         audio_path = 'uploads/input_audio.wav'
@@ -45,7 +45,7 @@ def process_audio():
         # Convert audio file to base64
         with open(audio_path, 'rb') as f:
             audio_base64 = base64.b64encode(f.read()).decode('utf-8')
-
+        """
         # Step 1: Send request to get pipeline details
         response = requests.post(
             model_pipeline_endpoint,
@@ -108,32 +108,41 @@ def process_audio():
             return jsonify({'error': 'Failed to process audio'}), 500
 
         transcribed_audio = response.json()['pipelineResponse'][0]['output'][0]['source']
-        chat_reply = chat(transcribed_audio)
-        processed_audio = tts(chat_reply, source_lang)
+        #chat_reply = chat(transcribed_audio)
+        #processed_audio = tts(chat_reply, source_lang)
         print(f"User: {transcribed_audio}")
-        print(f"Assistant: {chat_reply}")
-        return jsonify({'transcription': transcribed_audio, 'assistant': chat_reply, 'audio': processed_audio})
+        return jsonify({'transcription': transcribed_audio}) #}, 'assistant': chat_reply, 'audio': processed_audio})
 
     except Exception as e:
-        print(f"Exception occurred: {str(e)}")
+        print(f"Exception occurred in ASR: {str(e)}")
         return jsonify({'error': 'An error occurred while processing audio'}), 500
 
-def chat(prompt):
+@app.route('/chat', methods=['POST'])
+def chat():
     try:
+        data = request.json
+        prompt = data['prompt']
+        language = data['sourceLang']
         completion = client.chat.completions.create(
             model='gpt-4o',
             messages=[
-                {"role": "system", "content": "you are a helpful chat assistant. you always give replies in the same language as user asks you"},
+                {"role": "system", "content": f"you are a helpful chat assistant. You always give replies in the same language as user asks you. current language is {language}."},
                 {"role": "user", "content": prompt}
             ]
         )
+        print(f"Assistant: {completion.choices[0].message.content}")
+
     except Exception as e:
         print(f"Exception occurred in chat: {str(e)}")
-        return 'An error occurred while processing audio'
-    return completion.choices[0].message.content
+        return 'An error occurred while processing chat'
+    return jsonify({'assistant': completion.choices[0].message.content})
 
-def tts(prompt, source_lang):
+@app.route('/tts', methods=['POST'])
+def tts():
     try:
+        data = request.json
+        prompt = data['prompt']
+        source_lang = data['sourceLang']
         response = requests.post(
             model_pipeline_endpoint,
             json={
@@ -193,7 +202,8 @@ def tts(prompt, source_lang):
             return jsonify({'error': 'Failed to process audio'}), 500
 
         processed_audio_base64 = response.json()['pipelineResponse'][0]['audio'][0]['audioContent']
-        return processed_audio_base64
+        print(processed_audio_base64)
+        return jsonify({'audio': processed_audio_base64})
 
     except Exception as e:
         print(f"Exception occurred: {str(e)}")
